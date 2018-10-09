@@ -1,7 +1,9 @@
 import cirq
 import numpy as np
 from matplotlib import pyplot as plt
-from qaoa_functions import qaoa_to_p, output_state_prob_energy, initial_guess_sweep_bobyqa, parameter_sweep_ground_prob, parameter_sweep, angles_trotter_steps
+import scipy.optimize as optimize
+
+from qaoa_functions import qaoa_to_p, output_state_prob_energy, initial_guess_sweep_bobyqa, parameter_sweep_ground_prob, parameter_sweep, angles_trotter_steps, cost_function_multistep
 
 
 def fixed_instance_1():
@@ -38,7 +40,7 @@ z_max = 4.0
 # print(maximum_strings)
 # print(minimum)
 # print(maximum)
-# best_angles = [0.80508571, 0.20362419, 0.87883107, 0.38059593, 0.92986663, 0.44366917]
+best_angles = [0.80508571, 0.20362419, 0.87883107, 0.38059593, 0.92986663, 0.44366917]
 # best_angles_p30 = [0.75627212, 0.06643678, 0.77414841, 0.13653974, 0.80661742,
 #        0.16238658, 0.81808738, 0.19476923, 0.82804397, 0.22159164,
 #        0.83292317, 0.24467722, 0.83822807, 0.26495925, 0.85315192,
@@ -52,7 +54,8 @@ z_max = 4.0
 #        0.96797653, 0.42452269, 0.9726096 , 0.43454641, 0.97622434,
 #        0.42975456, 0.97953791, 0.43514055, 0.9917838 , 0.41323836]
 
-# probs, ratios, steps, new_angles = qaoa_to_p(h, jr, jc, best_angles, 2, qubits, num_trials = 1000)
+# probs, ratios, steps, new_angles = qaoa_to_p(h, jr, jc, best_angles, 7, qubits, num_trials = 1000)
+# print(new_angles)
 #
 # plt.plot(steps, probs, 'b-o')
 # plt.xlabel("p")
@@ -74,7 +77,7 @@ time_min = 0.2
 time_max = 40.0
 local_strength_min = -1.0
 local_strength_max = 8.0
-steps = 3
+steps = 10
 
 def parameter_sweep_trotter(time_min, time_max, local_strength_min, local_strength_max, h, jr, jc, qubits, steps, num_points=20):
     results_map_gnd = np.zeros((num_points, num_points))
@@ -111,8 +114,74 @@ def parameter_sweep_trotter(time_min, time_max, local_strength_min, local_streng
 
     plt.show()
 
+# def digital_qaa_output_expectation(time_and_strength, h, jr, jc, qubits, steps):
+#     time = time_and_strength[0]
+#     strength = time_and_strength[1]
+#     angles = angles_trotter_steps(steps, time, strength)
+#     return cost_function_multistep(angles, h, jr, jc, qubits, num_trials = 1000, p = steps)
+#
+# res = optimize.minimize(digital_qaa_output_expectation, [21.0, 0.3],
+#                             args=(h, jr, jc, qubits, steps),
+#                             method='POWELL', tol=1e-6)
+#
+# gnd_prob, expected_energy = output_state_prob_energy(angles_trotter_steps(steps, res.x[0], res.x[1]), h, jr, jc, qubits, p = steps, sorted = False)
+# print(res.x)
+# print(gnd_prob)
 
-parameter_sweep_trotter(time_min, time_max, local_strength_min, local_strength_max, h, jr, jc, qubits, steps, num_points = 10)
+
+
+# best_p3_x = [6.56784981, 0.33250307]
+# best_angles_p3_trotter = np.array(angles_trotter_steps(steps, best_p3_x[0], best_p3_x[1]))
+# best_angles_p3_trotter[0::2] = best_angles_p3_trotter[0::2]+1
+#
+# best_angles_p3 = [0.80508571, 0.20362419, 0.87883107, 0.38059593, 0.92986663, 0.44366917]
+#
+# gnd_prob, expected_energy = output_state_prob_energy(best_angles_p3_trotter, h, jr, jc, qubits, p = 3, sorted = False)
+# print(gnd_prob)
+#
+# x = np.linspace(1, 3, 3)
+# plt.plot(x, best_angles_p3_trotter[0::2], 'bo-', label = 'Digitized QAA')
+# plt.plot(x, best_angles_p3[0::2], 'ro-', label = 'QAOA')
+# plt.xlabel(r"$Step$")
+# plt.ylabel(r"$\beta / \pi$")
+# plt.legend()
+# plt.show()
+#
+# plt.plot(x, best_angles_p3_trotter[1::2], 'bo-', label = 'Digitized QAA')
+# plt.plot(x, best_angles_p3[1::2], 'ro-', label = 'QAOA')
+# plt.xlabel(r"$Step$")
+# plt.ylabel(r"$\gamma / \pi$")
+# plt.legend()
+# plt.show()
+
+best_p10_x = [21.02431509, 0.26383036]
+best_angles_p10_trotter = np.array(angles_trotter_steps(steps, best_p10_x[0], best_p10_x[1]))
+best_angles_p10_trotter[0::2] = best_angles_p10_trotter[0::2]+1
+
+best_angles_p10 = [0.81062343, 0.12850094, 0.85441319, 0.22443518, 0.8629922,  0.2700056,
+ 0.87552642, 0.3018966,  0.88355768, 0.3345698,  0.903276,   0.37177725,
+ 0.9293668,  0.40307013, 0.93758437, 0.42417638, 0.94729203, 0.45207902,
+ 0.97634265, 0.46172133]
+
+gnd_prob, expected_energy = output_state_prob_energy(best_angles_p10_trotter, h, jr, jc, qubits, p = 10, sorted = False)
+print(gnd_prob)
+
+x = np.linspace(1, 10, 10)
+plt.plot(x, best_angles_p10_trotter[0::2], 'bo-', label = 'Digitized QAA')
+plt.plot(x, best_angles_p10[0::2], 'ro-', label = 'QAOA')
+plt.xlabel(r"$Step$")
+plt.ylabel(r"$\beta / \pi$")
+plt.legend()
+plt.show()
+
+plt.plot(x, best_angles_p10_trotter[1::2], 'bo-', label = 'Digitized QAA')
+plt.plot(x, best_angles_p10[1::2], 'ro-', label = 'QAOA')
+plt.xlabel(r"$Step$")
+plt.ylabel(r"$\gamma / \pi$")
+plt.legend()
+plt.show()
+
+# parameter_sweep_trotter(time_min, time_max, local_strength_min, local_strength_max, h, jr, jc, qubits, steps, num_points = 10)
 
 # gnd_prob, expected_energy = output_state_prob_energy(new_angles, h, jr, jc, qubits, p = steps)
 # print(gnd_prob, expected_energy)

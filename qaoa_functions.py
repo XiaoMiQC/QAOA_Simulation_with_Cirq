@@ -57,8 +57,8 @@ def angles_trotter_steps(p, time, local_strength):
     step_size = 1.0/float(p)
     angles = [0]*(2*p)
     for idx in range(p):
-        angles[2*idx + 1] = -(step_size**2)*(idx + 0.5)/np.pi*time
-        angles[2*idx] = step_size*(1.0 - step_size*(idx + 0.5))/np.pi*time*local_strength
+        angles[2*idx + 1] = (step_size**2)*(idx + 0.5)/np.pi*time
+        angles[2*idx] = -step_size*(1.0 - step_size*(idx + 0.5))/np.pi*time*local_strength
     return angles
 
 
@@ -305,6 +305,7 @@ def output_state_prob_energy(half_turns, h, jr, jc, qubits, p, showplots = False
 
     return state_prob[np.argmin(energy)], expected_energy
 
+
 def increase_p(prev_best_angles, h, jr, jc, qubits, p, num_trials):
     next_guess = [0.0]*(2*p + 2)
     prev_x_rots = prev_best_angles[0::2]
@@ -334,6 +335,7 @@ def increase_p(prev_best_angles, h, jr, jc, qubits, p, num_trials):
     cost = res.f
     ground_prob = ground_state_prob(res.x, h, jr, jc, qubits, p)
     return cost, ground_prob, res.x
+
 
 def qaoa_to_p(h, jr, jc, angles_at_p3, num_increments, qubits, num_trials = 1000):
     cost_functions = [cost_function_multistep(angles_at_p3, h, jr, jc, qubits, num_trials, 3)]
