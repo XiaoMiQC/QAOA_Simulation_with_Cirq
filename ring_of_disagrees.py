@@ -2,7 +2,6 @@ import itertools
 
 import cirq
 import numpy
-import openfermioncirq
 import pybobyqa
 
 
@@ -27,9 +26,8 @@ class QubitRing(object):
         if couplings is not None:
             if len(couplings) != num_qubits:
                 raise Exception(
-                    'Expected {} couplings, but {} specified'.format(num_qubits,
-                                                                     len(
-                                                                         couplings)))
+                    'Expected {} couplings, but {} specified'.format(
+                        num_qubits, len(couplings)))
             self._couplings = couplings.copy()
         else:
             self._couplings = [-1.0] * num_qubits
@@ -68,10 +66,10 @@ class QubitRing(object):
 
     def _hadamards(self):
         for i in range(self._num_qubits):
-            yield cirq.HGate()(self._qubit_list[i])
+            yield cirq.H()(self._qubit_list[i])
 
     def _rot_x_layer(self, x_half_turn):
-        rot = cirq.RotXGate(half_turns=x_half_turn * 2)
+        rot = cirq.X ** (x_half_turn * 2.0)
         for i in range(self._num_qubits):
             yield rot(self._qubit_list[i])
 
@@ -81,8 +79,7 @@ class QubitRing(object):
         else:
             h_s = self._noiseless_h.copy()
         for i, h_i in enumerate(h_s):
-            yield cirq.RotZGate(half_turns=(h_i * z_half_turn))(
-                self._qubit_list[i])
+            yield cirq.ZZ ** (h_i * z_half_turn)(self._qubit_list[i])
 
     def _rot_zz_layer(self, zz_half_turn, with_noise):
         if with_noise:
@@ -90,9 +87,9 @@ class QubitRing(object):
         else:
             j_s = self._noiseless_j.copy()
         for i, j_i in enumerate(j_s):
-            yield openfermioncirq.ZZGate(half_turns=(j_i * zz_half_turn))(
-                self._qubit_list[i],
-                self._qubit_list[(i + 1) % self._num_qubits])
+            yield cirq.ZZ ** (j_i * zz_half_turn
+                              )(self._qubit_list[i],
+                                self._qubit_list[(i + 1) % self._num_qubits])
 
     def _qaoa_sequence(self, angle_pairs, with_noise):
         yield self._hadamards()
@@ -169,22 +166,25 @@ class QubitRing(object):
         e_list = search_analysis['energy_list']
 
         def cost_function(angles_list):
-            angles_list = [(angles_list[i], angles_list[i+1]) for i in numpy.array(range(p))*2]
-            _, state_probs = self.simulate_qaoa(angles_list, with_noise=with_noise)
-            return -numpy.sum(e_list*state_probs)
+            angles_list = [(angles_list[i], angles_list[i + 1]) for i in
+                           numpy.array(range(p)) * 2]
+            _, state_probs = self.simulate_qaoa(angles_list,
+                                                with_noise=with_noise)
+            return -numpy.sum(e_list * state_probs)
 
-        lower_bounds = numpy.array([0.0]*(2*p))
-        upper_bounds = numpy.array([1.0, 2.0]*p)*16
+        lower_bounds = numpy.array([0.0] * (2 * p))
+        upper_bounds = numpy.array([1.0, 2.0] * p) * 16
 
         best_cost = None
         best_angles = None
 
         for i in range(num_inits):
             print(i)
-            guess = numpy.random.uniform(0, 2, p*2)
-            guess[0::2] = guess[0::2]/2.0
+            guess = numpy.random.uniform(0, 2, p * 2)
+            guess[0::2] = guess[0::2] / 2.0
             res = pybobyqa.solve(cost_function, guess,
-                                 bounds=(lower_bounds, upper_bounds), maxfun=1000)
+                                 bounds=(lower_bounds, upper_bounds),
+                                 maxfun=1000)
             cost = res.f
             if best_cost is None or cost < best_cost:
                 best_cost = cost
@@ -194,7 +194,3 @@ class QubitRing(object):
                        numpy.array(range(p)) * 2]
 
         return -best_cost, best_angles
-
-
-
-

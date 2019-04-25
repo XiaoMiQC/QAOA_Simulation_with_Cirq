@@ -1,14 +1,34 @@
 import numpy as np
-import time
 from typing import Sequence, Dict, Tuple, Set, List
 
 import cirq
 
 
 class QAOACircuit:
+    """Generates QAOA Circuits for an all-to-all connected Ising model."""
     def __init__(self, qubits: Sequence[cirq.GridQubit],
                  local_fields: Dict[int, float],
                  interaction_terms: Dict[Tuple[int, int], float]):
+        r"""Specifies the qubits and Hamiltonian of the problem.
+
+        The Hamiltonian of the QAOA problem has the form:
+
+        H_t = \sum_i c_i \sigma_i^z + \sum_{ij} c_{ij} * \sigma_i^z \sigma_j^z,
+
+        where \sigma_i is the Pauli-Z operator on qubit i, c_i and c_{ij} are
+        the coefficients for the different terms. The indices i and j must be
+        between 0 and N - 1, where N is the total number of qubits. The index
+        pairs ij can be between any two qubits, but i must be different from j.
+
+        Args:
+            qubits: The grid qubits to run QAOA, in order.
+            local_fields: Maps qubit number to its local z term. Specifically,
+                {i: c_i} adds a term c_i * \sigma_i^z to the total
+                Hamiltonian.
+            interaction_terms: Maps tuples (i, j) to zz interaction terms.
+                Specifically, {(i, j) : c_ij} adds a term c_{ij} * \sigma_i^z
+                \sigma_j^z to the total Hamiltonian.
+        """
         self._num_qubits = len(qubits)
         msg = 'Qubit labels must be smaller than {}.'.format(self._num_qubits)
         self._interaction_terms = {}
@@ -72,7 +92,6 @@ class QAOACircuit:
         couplings = set(self._interaction_terms)
         count = 0
         while len(couplings) > 0:
-            time.sleep(0.5)
             gate_seq.extend(self._swap_layer_one_pass(gamma, count % 2,
                                                       qubit_order, couplings))
             count += 1
@@ -94,6 +113,53 @@ class QAOACircuit:
 
     def build(self, beta_seq: Sequence[float], gamma_seq: Sequence[float],
               use_swap: bool = True) -> Tuple[cirq.Circuit, List[int]]:
+        r"""Builds a quantum circuit running QAOA with a fixed set of angles.
+
+        The circuit to be built is:
+        U = \prod_k \exp(-1j * \beta_k * H_d) \exp(-1j * \gamma_k * H_t),
+
+        where H_t is the target Hamiltonian defined at the initialization,
+        H_d is the drive Hamiltonian \sum_i \sigma_i^x. The angles \beta_k
+        and \gamma_k are variational parameters. In addition to the above,
+        the circuit also includes a single layer of Hadamard gates on every
+        qubit. For details, refer to Farhi et al., arXiv:1411.4028 (2014).
+
+        The method allows for the circuit to be built in two ways: if
+        use_swap is False, two-qubit gates are allowed between any pair of
+        qubits. Otherwise two qubit gates are only allowed between qubits
+        next to each other and the qubits are assumed to be placed on a line.
+        In this case, the qubits are re-shuffled using a network of SWAP
+        gates similar to those described in:
+
+        Kivlichan et al., PRL 120, 110501 (2018).
+
+        The SWAP network is modified to use SWAP and ZZ gates as opposed to
+        FSIM gates. Also, rather than always perform the full network,
+        the procedure does the following:
+
+        1. For k = 0, swap qubit and do zz gates until all zz operations have
+        been enacted. Record the qubit order.
+
+        2. For k = 1, do the exact reverse of the above. The qubit order is
+        reverted to the original order.
+
+        3. For higher k, perform 1 when k is even and 2 when k is odd.
+
+        Args:
+            beta_seq: The variational angles \beta_k, in order. The length of
+                beta_seq determines the circuit depth (equal to p in the
+                original QAOA paper by Farhi et al.).
+            gamma_seq: The variational angles \gamma_k, in order. Must have
+                the same length as beta_seq.
+            use_swap: Whether to use SWAP network for building the QAOA circuit.
+
+        Returns:
+            circuit: The compiled QAOA circuit.
+            qubit_order: The order of the qubits at the end of the circuit.
+                As an example, for a three-qubit system [2, 0, 1] means the
+                third qubit is now the first qubit, the first qubit is now
+                the second qubit, and the second qubit is now the third qubit.
+        """
         p = len(beta_seq)
         if p != len(gamma_seq):
             raise RuntimeError('Number of beta values must be the same as '
@@ -133,6 +199,20 @@ def _swap_and_zz(q_0: cirq.GridQubit, q_1: cirq.GridQubit,
 
 def measure_bits(sampler: cirq.SimulatesSamples, circuit: cirq.Circuit,
                  qubit_order: List[int], repetitions: int) -> np.ndarray:
+    """Runs a QAOA circuit a number of times and get all results.
+
+    Args:
+        sampler: The simulator or hardware to run the circuit on.
+        circuit: The circuit to run.
+        qubit_order: The ordering of the qubits in the final bit-string.
+            This is only relevant when the SWAP network is used.
+        repetitions: The number of trials to repeat the circuit.
+
+    Returns:
+        The results of the circuit stored in a 2D array. Each row represents
+        the result of one single trial. The only possible values are +1 (
+        qubit is in the ground state) and -1 (qubit in the excited state).
+    """
     pm_mat = np.zeros((repetitions, len(qubit_order)))
     raw_data = sampler.run(circuit, repetitions=repetitions).measurements['z']
     pm_mat[:, qubit_order] = np.asarray(raw_data)
@@ -141,8 +221,25 @@ def measure_bits(sampler: cirq.SimulatesSamples, circuit: cirq.Circuit,
 
 def calc_energy(local_fields: Dict[int, float],
                 interaction_terms: Dict[Tuple[int, int], float],
-                bit_mat: np.ndarray) -> float:
-    _, num_qubits = bit_mat.shape
+                trial_results: np.ndarray) -> float:
+    """Calculate the expectation value of the energy from a collection of
+    trial results.
+
+    Args:
+        local_fields: Maps qubit number to its local z term. Specifically,
+            {i: c_i} adds a term c_i * \sigma_i^z to the total Hamiltonian.
+        interaction_terms: Maps tuples (i, j) to zz interaction terms.
+            Specifically, {(i, j) : c_ij} adds a term c_{ij} * \sigma_i^z
+            \sigma_j^z to the total Hamiltonian.
+        trial_results: The trial results of measuring a QAOA circuit, stored in
+            a 2D array. Each row represents the result of one single trial.
+            The only allowed values are +1 (qubit is in the ground state)
+            and -1 (qubit in the excited state)
+
+    Returns:
+        The expectation value of the energy of the Hamiltonian.
+    """
+    _, num_qubits = trial_results.shape
 
     h_mat = np.zeros(num_qubits)
     for key, val in local_fields.items():
@@ -152,8 +249,8 @@ def calc_energy(local_fields: Dict[int, float],
     for (l_i, l_j), val in interaction_terms.items():
         j_mat[l_i, l_j] = val
 
-    h_ave = np.mean(np.einsum('i,ji->j', h_mat, bit_mat))
-    j_ave = np.einsum('ij,kj->ik', j_mat, bit_mat)
-    j_ave = np.mean(np.einsum('ki,ik->k', bit_mat, j_ave))
+    h_ave = np.mean(np.einsum('i,ji->j', h_mat, trial_results))
+    j_ave = np.einsum('ij,kj->ik', j_mat, trial_results)
+    j_ave = np.mean(np.einsum('ki,ik->k', trial_results, j_ave))
 
     return h_ave + j_ave

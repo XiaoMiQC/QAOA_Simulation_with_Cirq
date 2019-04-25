@@ -3,3 +3,4 @@ cirq
 openfermioncirq
 scipy
 Py-BOBYQA
+matplotlib

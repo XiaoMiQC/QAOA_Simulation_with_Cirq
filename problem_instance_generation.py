@@ -6,11 +6,13 @@ from scipy.sparse import linalg
 
 def random_ising_model(num_rows, num_cols):
     # transverse field terms
-    h = ((np.random.uniform(0,1, size = (num_rows, num_cols)) * 2) - 1.0) * 1.0
+    h = ((np.random.uniform(0, 1, size=(num_rows, num_cols)) * 2) - 1.0) * 1.0
     # links within a row
-    jr = ((np.random.uniform(0,1, size = (num_rows, num_cols - 1)) * 2) - 1.0) * 1.0
+    jr = ((np.random.uniform(0, 1,
+                             size=(num_rows, num_cols - 1)) * 2) - 1.0) * 1.0
     # links within a column
-    jc = ((np.random.uniform(0,1, size = (num_rows - 1, num_cols)) * 2) - 1.0) * 1.0
+    jc = ((np.random.uniform(0, 1,
+                             size=(num_rows - 1, num_cols)) * 2) - 1.0) * 1.0
     return (h, jr, jc)
 
 
@@ -24,7 +26,6 @@ def tens_prod(m1, m2):
 
 
 def eigensystem(matrix, num_eigens):
-
     rng = np.random.RandomState(seed=11)  # Ensures deterministic output.
     initial_vec = rng.rand(matrix.shape[0])
     eigenvalues, vectors = linalg.eigsh(
@@ -39,39 +40,45 @@ def get_ham_matrix(h, jr, jc, t):
     sigma_z = np.array([[1.0, 0.0], [0.0, -1.0]])
     num_rows = list(h.shape)[0]
     num_cols = list(h.shape)[1]
-    ham_mat = np.zeros((2**(num_rows*num_cols),2**(num_rows*num_cols)))
+    ham_mat = np.zeros((2 ** (num_rows * num_cols), 2 ** (num_rows * num_cols)))
 
     for i in range(num_rows):
         for j in range(num_cols):
-            index = j + i*num_cols
-            local_mat = (1.0-t)*sigma_x + t*h[i,j]*sigma_z
+            index = j + i * num_cols
+            local_mat = (1.0 - t) * sigma_x + t * h[i, j] * sigma_z
             mat_1 = np.eye(2 ** index)
             mat_2 = np.eye(2 ** (num_rows * num_cols - index - 1))
             ham_mat += tens_prod(tens_prod(mat_1, local_mat), mat_2)
 
     for (i, j), jr_ij in np.ndenumerate(jr):
-        index_1 = j + i*num_cols
-        index_2 = j + i*num_cols + 1
+        index_1 = j + i * num_cols
+        index_2 = j + i * num_cols + 1
         mat_1 = np.eye(2 ** index_1)
         mat_2 = np.eye(2 ** (index_2 - index_1 - 1))
         mat_3 = np.eye(2 ** (num_rows * num_cols - index_2 - 1))
-        ham_mat += t*jr_ij*tens_prod(tens_prod(tens_prod(tens_prod(mat_1, sigma_z), mat_2),sigma_z),mat_3)
+        ham_mat += t * jr_ij * tens_prod(
+            tens_prod(tens_prod(tens_prod(mat_1, sigma_z), mat_2), sigma_z),
+            mat_3)
 
     for (i, j), jc_ij in np.ndenumerate(jc):
-        index_1 = j + i*num_cols
-        index_2 = j + (i+1)*num_cols
+        index_1 = j + i * num_cols
+        index_2 = j + (i + 1) * num_cols
         mat_1 = np.eye(2 ** index_1)
         mat_2 = np.eye(2 ** (index_2 - index_1 - 1))
         mat_3 = np.eye(2 ** (num_rows * num_cols - index_2 - 1))
-        ham_mat += t*jc_ij*tens_prod(tens_prod(tens_prod(tens_prod(mat_1, sigma_z), mat_2),sigma_z),mat_3)
+        ham_mat += t * jc_ij * tens_prod(
+            tens_prod(tens_prod(tens_prod(mat_1, sigma_z), mat_2), sigma_z),
+            mat_3)
     return sparse.csr_matrix(ham_mat)
+
 
 def get_energies(h, jr, jc, t, n):
     ham_mat = get_ham_matrix(h, jr, jc, t)
     energies, _ = eigensystem(ham_mat, n)
     return energies
 
-def plot_annealing_trajectory(h, jr, jc, n, num_points = 10):
+
+def plot_annealing_trajectory(h, jr, jc, n, num_points=10):
     times = np.linspace(0, 1, num_points)
     energies = np.zeros((n, num_points))
     for idx, time in np.ndenumerate(times):
