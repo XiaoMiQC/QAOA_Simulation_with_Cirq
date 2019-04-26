@@ -116,7 +116,8 @@ class QAOACircuit:
         r"""Builds a quantum circuit running QAOA with a fixed set of angles.
 
         The circuit to be built is:
-        U = \prod_k \exp(-1j * \beta_k * H_d) \exp(-1j * \gamma_k * H_t),
+        U = \prod_{k = 1}^p \exp(-1j * \beta_k * H_d) \exp(-1j * \gamma_k *
+        H_t),
 
         where H_t is the target Hamiltonian defined at the initialization,
         H_d is the drive Hamiltonian \sum_i \sigma_i^x. The angles \beta_k

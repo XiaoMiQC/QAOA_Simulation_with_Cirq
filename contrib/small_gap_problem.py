@@ -1,9 +1,9 @@
 import cirq
 import numpy as np
 from matplotlib import pyplot as plt
-import scipy.optimize as optimize
 
-from qaoa_functions import qaoa_to_p, output_state_prob_energy, initial_guess_sweep_bobyqa, parameter_sweep_ground_prob, parameter_sweep, angles_trotter_steps, cost_function_multistep
+from contrib.old_functions import output_state_prob_energy, \
+    angles_trotter_steps
 
 
 def fixed_instance_1():
